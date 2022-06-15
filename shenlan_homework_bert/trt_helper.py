@@ -19,7 +19,10 @@ class TrtNetworkHelper():
         self.network = network
         self.plugin_registry = plugin_registry
         self.logger = logger
-
+        # 初始化LayerNorm
+        for c in self.plugin_registry.plugin_creator_list:
+            if c.name == 'LayerNorm':
+                self.layerNorm_layer = c.create_plugin(c.name, trt.PluginFieldCollection([]))
         self.input_num = 0
 
     def set_layer_name(self, layer, name):
@@ -121,12 +124,25 @@ class TrtNetworkHelper():
 
     def addLayerNorm(self, x, gamma, beta, layer_name=None, precision=None):
         # TODO: create your layer norm plugin
+        trt_layer = self.network.add_plugin_v2(x, self.layerNorm_layer)
+
+        if layer_name is None:
+            layer_name = "LayerNorm"
+
+        self.layer_post_process(trt_layer, layer_name, precision)
 
         return trt_layer.get_output(0)
 
     def addLinear(self, x, weight, bias, layer_name=None, precision=None):
         # TODO: add Linear
+        trt_layer = self.network.add_fully_connected(input=x, num_outputs=x.shape[1], kernel=weight, bias=bias)
 
+        if layer_name is None:
+            layer_name = "nn.Linear"
+
+        self.layer_post_process(trt_layer, layer_name, precision)
+
+        x = trt_layer.get_output(0)
         return x
 
     def addReLU(self, layer, x, layer_name=None, precision=None):
@@ -142,6 +158,12 @@ class TrtNetworkHelper():
 
     def addSoftmax(self, x: trt.ITensor, dim: int = -1, layer_name=None, precision=None) -> trt.ITensor:
         # TODO: add softmax
+        trt_layer = self.network.add_softmax(x, dim)
+
+        if layer_name is None:
+            layer_name = "Softmax"
+
+        self.layer_post_process(trt_layer, layer_name, precision)
         return x
 
     ################## unary op ###################
@@ -160,6 +182,12 @@ class TrtNetworkHelper():
     ################## elementwise op ###################
     def addAdd(self, a, b, layer_name=None, precision=None):
         # add Add
+        trt_layer = self.network.add_elementwise(a,b, trt.ElementWiseOperation.SUM)
+        if layer_name is None:
+            layer_name = "add"
+
+        self.layer_post_process(trt_layer, layer_name, precision)
+        x = trt_layer.get_output(0)
         return x
 
     # tensor and scalar op
@@ -172,11 +200,23 @@ class TrtNetworkHelper():
     ) -> trt.ITensor:
         """scale"""
         # TODOL add scale
+        trt_layer = self.network.add_scale(x,scale=scale)
+        if layer_name is None:
+            layer_name = "scale"
 
+        self.layer_post_process(trt_layer, layer_name, precision)
+        x = trt_layer.get_output(0)
         return x
 
     def addMatMul(self, a: trt.ITensor, b: trt.ITensor, layer_name: Optional[str] = None) -> trt.ITensor:
         # add MatMul
+        trt_layer = self.network.add_matrix_multiply(a,b)
+
+        if layer_name is None:
+            layer_name = "matmul"
+
+        self.layer_post_process(trt_layer, layer_name)
+        x = trt_layer.get_output(0)
         return x
 
 
