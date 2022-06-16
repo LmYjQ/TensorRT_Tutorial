@@ -135,7 +135,7 @@ class TrtNetworkHelper():
 
     def addLinear(self, x, weight, bias, layer_name=None, precision=None):
         # TODO: add Linear
-        trt_layer = self.network.add_fully_connected(input=x, num_outputs=x.shape[1], kernel=weight, bias=bias)
+        trt_layer = self.network.add_fully_connected(input=x, num_outputs=weight.shape[1], kernel=weight, bias=bias)
 
         if layer_name is None:
             layer_name = "nn.Linear"
@@ -210,7 +210,7 @@ class TrtNetworkHelper():
 
     def addMatMul(self, a: trt.ITensor, b: trt.ITensor, layer_name: Optional[str] = None) -> trt.ITensor:
         # add MatMul
-        trt_layer = self.network.add_matrix_multiply(a,b)
+        trt_layer = self.network.add_matrix_multiply(a, trt.MatrixOperation.NONE, b, trt.MatrixOperation.NONE)
 
         if layer_name is None:
             layer_name = "matmul"
